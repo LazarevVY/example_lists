@@ -1,76 +1,63 @@
 // Описание кода:
 // 1
-// В случае возникновения ошибки при получении данных из MockRepository,
-// в эту переменную будет записываться описание ошибки для дальнейшего
-// её отображения. Эта переменная не может быть null и по умолчанию хранит
-// пустую строку. Такой подход позволяет избежать неопределённого толкования
-// значения этой переменной. Поясню. Если бы переменная была null — это бы,
-// скорее всего, означало отсутствие ошибки. Но если бы эта переменная хранила
-// пустую строку и, в то же время, имела бы возможность иметь значение null,
-// то интерпретация такого состояния была бы не очевидна.
+// Иногда интерфейс приложения должен по-разному информировать пользователя
+// о загрузке данных в случаях, если происходит обновление всего списка,
+// либо подгружается его часть. Данное перечисление содержит возможные цели
+// загрузки данных для списка.
 // 2
-// Строка добавлена лишь для более понятного и эстетичного наименования
-// параметров конструктора класса.
+// Переменная указывает загружен ли список целиком. Она должна содержать
+// значение true, когда в список добавлена последняя страница с данными.
 // 3
-// Переменная recordsStore хранит список записей для отображения на экране.
-// Возможность хранения значения null сделано для того, чтобы различать причины,
-// по которым список записей пуст. Если переменная имеет значение null,
-// значит список пуст, так как ещё не было успешных обращений к MockRepository
-// на получение записей. Если же в переменной сохранён пустой список,
-// значит такое обращение было, однако MockRepository не вернул ни одной записи.
-// Для более удобного различия этих состояний используется переменная isInitialized.
-// 4
-// Параметр records всегда возвращает список, вне зависимости от того, сохранено
-// ли значение null в recordsStore. Этот параметр удобно использовать,
-// чтобы избежать проверки значения recordsStore на null, при получении списка
-// записей.
-// 5
-// Параметр hasError удобно использовать, когда надо проверить, произошла ли
-// ошибка в ходе получения записей из репозитория. Для этих целей можно было бы
-// анализировать переменную error, однако в ходе разработки приложения способ
-// хранения ошибки в состоянии списка может измениться и тогда придётся
-// переписывать некоторую часть кода. Дальнейшее использование этого параметра
-// также приведёт к более краткому и понятному коду.
-// 6
-// Параметр isLoading сигнализирует о том, происходит ли загрузка списка
-// в данный момент. Этот параметр будет использоваться для определения
-// необходимости отображения индикатора загрузки списка, а также для того,
-// чтобы избежать параллельного выполнения функции получения данных списка
-// из репозитория несколько раз.
-// 7
-// Так как объект класса ListState неизменяемый, функция copyWith добавляет
-// возможность копирования этого объекта с нужными изменениями.
+// Проверки на невозможные состояния списка. Чтобы отладка кода был проще,
+// лучше такие состояния отлавливать как можно раньше.
 
 import 'models.dart';
+
+enum LoadingFor { idle, replace, add } // + 1
 
 class ListState {
   ListState({
     List<ExampleRecord>? records,
-    this.isLoading = false,
-    this.error = '', // 1
-  }) : recordsStore = records; // 2
+    this.loadingFor = LoadingFor.idle,
+    this.hasLoadedAllRecords = false, // + 2
+    this.error = '',
+  }) : recordsStore = records {
+    // 3
+    if (isInitialized && !hasLoadedAllRecords && this.records.isEmpty) { // + 
+      throw Exception("Wrong list state: list is empty but has no loadedAllRecords marker"); // +
+    } // + 
+    if (hasLoadedAllRecords && hasError) { // + 
+      throw Exception("Wrong list state: state with hasLoadedAllRecords marker must not contain error ($error)"); // +
+    } // + 
+  }
 
-  final List<ExampleRecord>? recordsStore; // 3
+  final LoadingFor loadingFor; // *
+  final bool hasLoadedAllRecords; // +
 
-  bool get isInitialized => recordsStore != null; // 3
+  final List<ExampleRecord>? recordsStore;
 
-  List<ExampleRecord> get records => recordsStore ?? List<ExampleRecord>.empty(); // 4
+  bool get isInitialized => recordsStore != null;
+
+  List<ExampleRecord> get records => recordsStore ?? List<ExampleRecord>.empty();
 
   final String error;
 
-  bool get hasError => error.isNotEmpty; // 5
+  bool get hasError => error.isNotEmpty;
 
-  final bool isLoading; // 6
+  bool get isLoading => loadingFor != LoadingFor.idle; // +
 
-  // 7
+  bool canLoadMore() => !hasLoadedAllRecords && !isLoading && !hasError; // +
+
   ListState copyWith({
     List<ExampleRecord>? records,
-    bool? isLoading,
+    LoadingFor? loadingFor, // *
+    bool? hasLoadedAllRecords, // +
     String? error,
   }) {
     return ListState(
       records: records ?? recordsStore,
-      isLoading: isLoading ?? this.isLoading,
+      loadingFor: loadingFor ?? this.loadingFor, // +
+      hasLoadedAllRecords: hasLoadedAllRecords ?? this.hasLoadedAllRecords, // +
       error: error ?? this.error,
     );
   }

@@ -18,9 +18,11 @@ class ExampleRecord {
 
 class ExampleRecordQuery {
   final String? contains; // 1
+  final int? weightGt; // +
 
   const ExampleRecordQuery({
     this.contains,
+    this.weightGt, // +
   });
 
   // 2
@@ -33,4 +35,10 @@ class ExampleRecordQuery {
   int compareRecords(ExampleRecord record1, ExampleRecord record2) {
     return record1.weight.compareTo(record2.weight);
   }
+
+  ExampleRecordQuery copyWith({int? weightGt}) { // +
+    return ExampleRecordQuery( // +
+      weightGt: weightGt ?? this.weightGt, // +
+    ); // +
+  }// +
 }

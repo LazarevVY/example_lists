@@ -18,6 +18,10 @@
 // в формат, принимаемый источником данных, будь то SQL WHERE-условие
 // или HTTP GET-запрос.
 
+// Раскомментировать строку можно для проверки того, как реагирует интерфейс
+// программы, если возникла ошибка на стадии получения данных. В этом случае,
+// когда мы пролистаем список до записи с весом 400, должно появиться сообщение
+// об ошибке с кнопкой повторения получения результатов.
 
 
 import 'dart:math';
@@ -25,6 +29,7 @@ import 'package:english_words/english_words.dart';
 import 'models.dart';
 
 const kRecordsToGenerate = 100;
+const kBatchSize = 15;
 
 class MockRepository {
   final List<ExampleRecord> _store = List<ExampleRecord>.generate(
@@ -45,6 +50,8 @@ class MockRepository {
     final sortedList = List.of(_store); // + 3
     if (query != null) sortedList.sort(query.compareRecords);  // + 4
 
-    return sortedList.where((record) => query == null || query.suits(record)).toList();  // * 5
+    //return sortedList.where((record) => query == null || query.suits(record)).toList();  // * 5
+    // if ((query?.weightGt ?? 0) > 400) throw "Test Exception"; // +6
+    return sortedList.where((record) => query == null || query.suits(record)).take(kBatchSize).toList();
   }
 }

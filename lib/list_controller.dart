@@ -28,11 +28,47 @@
 // loadRecords, так как в следующих частях статьи функция repeatQuery будет
 // дорабатываться.
 
+// Описание (модифицированного для порционной загрузки) кода:
+// 1
+// Для того, чтобы функция fetchRecords могла возвращать не только список
+// записей, но ещё и информацию о том, является ли возвращаемый результат
+// окончанием списка, используем в качестве возвращаемого значения этой функции
+// объект класса _FetchRecordsResult.
+// 2
+// Так как теперь список может загружаться и целиком, и частями, указываем это
+// через параметр replace функции loadRecords.
+// 3
+// Отображаем цель загрузки списка (целиком или частями) в его состоянии.
+// 4
+// Функция будет вызываться, когда необходимо получить следующую
+// страницу записей списка.
+// 5
+// Функция формирует объект запроса для получения следующей страницы списка.
+// 6
+// Дополнительная проверка на уместность вызова функции getNextRecordsQuery.
+// Нет смысла получать следующую страницу списка, если он пуст.
+// 7
+// Модифицируем запрос таким образом, чтобы функция queryRecords вернула данные,
+// у которых значение параметра, по которому идёт сортировка, было больше, чем у
+// такого же параметра последней записи текущего списка.
+// 8
+// Во время повторной попытки получения данных определяем способ, которым они
+// получались в предыдущий раз. Делается это на основании того, есть ли записи
+// в текущем состоянии списка. Альтернативный подход — сохранять последний
+// выполненный запрос ExampleRecordQuery в состоянии списка ListState.
 
 import 'list_state.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'package:flutter/foundation.dart';
+
+// 1
+class _FetchRecordsResult<T> { // +
+  final List<ExampleRecord> records; // +
+  final bool loadedAllRecords; // +
+
+  _FetchRecordsResult({required this.records, required this.loadedAllRecords}); // +
+} // +
 
 class ListController extends ValueNotifier<ListState> {
   final ExampleRecordQuery query; // +
@@ -41,23 +77,28 @@ class ListController extends ValueNotifier<ListState> {
   }
 
   // 3
-  Future<List<ExampleRecord>> fetchRecords(ExampleRecordQuery? query) async {
+  Future<_FetchRecordsResult> fetchRecords(ExampleRecordQuery? query) async {
     final loadedRecords = await MockRepository().queryRecords(query);
-    return loadedRecords;
+    //return loadedRecords;
+    return _FetchRecordsResult(records: loadedRecords, loadedAllRecords: loadedRecords.length < kBatchSize); // *
   }
 
   // 4
-  Future<void> loadRecords({ExampleRecordQuery? query}) async {
+  Future<void> loadRecords({ExampleRecordQuery? query, bool replace = true}) async {
     if (value.isLoading) return; // 5
 
-    value = value.copyWith(isLoading: true, error: ""); // 6
+    value = value.copyWith(loadingFor: replace ? LoadingFor.replace : LoadingFor.add, error: ""); // * 3 // 6
 
     try {
       final fetchResult = await fetchRecords(query);
+      final records = [ // +
+        if (!replace) ...value.records, // +
+        ...fetchResult.records, // +
+      ]; // +
 
-      value = value.copyWith(isLoading: false, records: fetchResult); // 7
+      value = value.copyWith(loadingFor: LoadingFor.idle, records: records, hasLoadedAllRecords: fetchResult.loadedAllRecords); // *
     } catch (e) {
-      value = value.copyWith(isLoading: false, error: e.toString()); // 8
+      value = value.copyWith(loadingFor: LoadingFor.idle, error: e.toString()); // *
       rethrow;
     }
   }
@@ -66,4 +107,13 @@ class ListController extends ValueNotifier<ListState> {
   repeatQuery() {
     return loadRecords(query: query);
   }
+  directionalLoad() async { // + 4
+    final query = getNextRecordsQuery(); // +
+    await loadRecords(query: query, replace: false); // +
+  } // +
+
+  ExampleRecordQuery getNextRecordsQuery() { // + 5
+    if (value.records.isEmpty) throw Exception("Impossible to create query"); // + 6
+    return query.copyWith(weightGt: value.records.last.weight); // + 7
+  } // +
 }
