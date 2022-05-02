@@ -36,6 +36,8 @@ import 'list_controller.dart'; // +
 import 'widgets/list_status_indicator.dart'; // +
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart'; // +
+import 'models.dart'; // +
+import 'widgets/record_teaser.dart'; // +
 
 void main() {
   runApp(const MyApp());
@@ -48,7 +50,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp( // +
       home: ChangeNotifierProvider( // + 1
-        create: (_) => ListController(), // +
+        create: (_) => ListController(query: const ExampleRecordQuery(contains: "ea")), // +
         child: const HomePage(), // +
       ), //+
     ); // +
@@ -77,7 +79,7 @@ class _HomePageState extends State<HomePage> {
           } // +
 
           final record = listState.records[index]; // + 7
-          return ListTile(title: Text(record.title)); // +
+          return RecordTeaser(record: record); // * //ListTile(title: Text(record.title)); // +
         }, // +
         itemCount: itemCount,
       ),
